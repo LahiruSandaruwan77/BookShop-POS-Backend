@@ -11,7 +11,7 @@ public class Product {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    
+    // Nullable: loose pens and services have no barcode. Unique when present.
     @Column(unique = true, length = 32)
     private String barcode;
 
@@ -22,25 +22,26 @@ public class Product {
     @JoinColumn(name = "category_id")
     private Category category;
 
-   
+    // ALWAYS BigDecimal for money — double/float cause rounding bugs on bills.
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal costPrice = BigDecimal.ZERO;
 
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal sellingPrice;
 
-    
+    // Decimal so we can sell fractional units later (by weight etc). Null for services.
+    @Column(precision = 10, scale = 2)
     private BigDecimal stockQty;
 
-    
+    // Services (photocopy, printout) skip stock deduction entirely.
     @Column(nullable = false)
     private boolean service = false;
 
-    
+    // Soft delete: never remove a product that old sales reference.
     @Column(nullable = false)
     private boolean active = true;
 
-    
+    // Per-item low-stock threshold ("low" for pens != "low" for novels).
     @Column(nullable = false)
     private int reorderLevel = 10;
 

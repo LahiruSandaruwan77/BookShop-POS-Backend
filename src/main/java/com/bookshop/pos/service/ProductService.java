@@ -61,13 +61,14 @@ public class ProductService {
         p.setSellingPrice(req.sellingPrice());
         p.setService(req.service());
         if (req.reorderLevel() != null) p.setReorderLevel(req.reorderLevel());
+        // Deliberately NOT touched here: stockQty. Stock changes only via StockService.
         return p;
     }
 
     @Transactional
     public Product setActive(Long id, boolean active) {
         Product p = require(id);
-        p.setActive(active); 
+        p.setActive(active); // soft delete — sales history stays intact
         return p;
     }
 

@@ -14,7 +14,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/stock-movements")
-@PreAuthorize("hasRole('ADMIN')") 
+@PreAuthorize("hasRole('ADMIN')") // the whole stock area is admin-only
 public class StockController {
 
     private final StockService stockService;
@@ -25,7 +25,8 @@ public class StockController {
         this.movements = movements;
     }
 
-
+    // @Transactional: StockMovementResponse.from() resolves the lazy `product`
+    // association — needs the session open past the repository call (see ProductController).
     @GetMapping
     @Transactional(readOnly = true)
     public List<StockMovementResponse> recent() {

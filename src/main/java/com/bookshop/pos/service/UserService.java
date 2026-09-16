@@ -70,7 +70,7 @@ public class UserService {
         return u;
     }
 
-
+    /** Admin resets someone's password to a temporary one — never views it. */
     @Transactional
     public void resetPassword(Long id, String temporaryPassword) {
         AppUser u = require(id);
@@ -78,7 +78,7 @@ public class UserService {
         u.setMustChangePassword(true);
     }
 
-
+    /** A user changes their OWN password (also clears the first-login flag). */
     @Transactional
     public void changeOwnPassword(String username, String currentPassword, String newPassword) {
         AppUser u = users.findByUsernameIgnoreCase(username)

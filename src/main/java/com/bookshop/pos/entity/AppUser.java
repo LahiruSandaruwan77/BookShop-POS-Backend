@@ -3,7 +3,10 @@ package com.bookshop.pos.entity;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
-
+/**
+ * Named AppUser (table app_users) because USER is a reserved word in H2 —
+ * an @Entity called User breaks table creation in confusing ways.
+ */
 @Entity
 @Table(name = "app_users")
 public class AppUser {
@@ -18,12 +21,12 @@ public class AppUser {
     private String name;
 
     @Column(nullable = false, unique = true, length = 40)
-    private String username; 
+    private String username; // store lowercase; enforce in the service layer
 
     @Column(length = 20)
     private String phone;
 
-
+    // Only the BCrypt hash — the plain password is never stored anywhere.
     @Column(nullable = false, length = 100)
     private String passwordHash;
 

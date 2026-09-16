@@ -25,6 +25,10 @@ public class ProductController {
         this.productService = productService;
     }
 
+    // ---- Reads: both roles (the billing screen needs these) ----
+    // @Transactional keeps the session open while ProductResponse.from() resolves
+    // each product's lazy `category` — open-in-view is off, so without this the
+    // mapping throws LazyInitializationException once the request leaves the repo call.
 
     @GetMapping
     @Transactional(readOnly = true)
@@ -49,7 +53,7 @@ public class ProductController {
                         "No product with barcode " + code));
     }
 
-
+    // ---- Writes: admin only ----
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
@@ -64,7 +68,8 @@ public class ProductController {
         return ProductResponse.from(productService.update(id, req));
     }
 
-    
+    // @Transactional (not just on the service): setActive() never touches `category`,
+    // so it's still an uninitialized lazy proxy when ProductResponse.from() runs here.
     @PatchMapping("/{id}/active")
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional
