@@ -1,0 +1,18 @@
+# Build output
+target/
+
+# Local database and backups (NEVER commit these — they're runtime data)
+data/
+backups/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
