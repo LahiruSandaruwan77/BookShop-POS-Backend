@@ -13,7 +13,7 @@ public class Category {
     @Column(nullable = false, unique = true, length = 50)
     private String name;
 
-    protected Category() {} 
+    protected Category() {} // JPA needs a no-arg constructor
 
     public Category(String name) {
         this.name = name;

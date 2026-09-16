@@ -27,12 +27,17 @@ public class SaleService {
         this.users = users;
     }
 
+    /**
+     * The heart of the POS. @Transactional = all-or-nothing:
+     * if anything fails (unknown product, insufficient stock, power cut mid-save),
+     * the WHOLE sale rolls back — never a half-recorded bill.
+     */
     @Transactional
     public Sale checkout(SaleRequest req, String cashierUsername) {
         AppUser cashier = users.findByUsernameIgnoreCase(cashierUsername)
                 .orElseThrow(() -> new ResponseStatusException(UNAUTHORIZED, "Unknown cashier"));
 
-
+        // Pass 1: validate every line and compute the total — server-side prices only.
         BigDecimal total = BigDecimal.ZERO;
         for (SaleRequest.Line line : req.items()) {
             Product p = products.findById(line.productId())
@@ -53,7 +58,7 @@ public class SaleService {
                     "Paid amount " + req.paidAmount() + " is less than total " + total);
         }
 
-    
+        // Pass 2: build the sale, deduct stock, log movements.
         String method = req.paymentMethod() == null ? "CASH" : req.paymentMethod();
         Sale sale = new Sale(cashier, total, req.paidAmount(),
                 req.paidAmount().subtract(total), method);
@@ -62,21 +67,21 @@ public class SaleService {
             Product p = products.findById(line.productId()).orElseThrow(); // validated above
             sale.addItem(new SaleItem(p, line.quantity(), p.getSellingPrice()));
 
-            if (!p.isService()) { 
+            if (!p.isService()) { // the is_service rule: services skip inventory
                 p.setStockQty(p.getStockQty().subtract(line.quantity()));
                 movements.save(new StockMovement(p, line.quantity().negate(),
                         StockMovement.Reason.SALE, "Sale"));
             }
         }
 
-        return sales.save(sale);
+        return sales.save(sale); // cascade saves all SaleItems too
     }
 
     @Transactional(readOnly = true)
     public Sale get(Long id) {
         Sale sale = sales.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Sale not found"));
-        sale.getItems().size();
+        sale.getItems().size(); // touch lazy collection inside the transaction
         return sale;
     }
 }

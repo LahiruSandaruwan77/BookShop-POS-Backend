@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 @Table(name = "stock_movements")
 public class StockMovement {
 
-
+    // Standard reasons; ADJUSTMENT carries a free-text note.
     public enum Reason { OPENING, PURCHASE, SALE, ADJUSTMENT }
 
     @Id
@@ -19,7 +19,7 @@ public class StockMovement {
     @JoinColumn(name = "product_id")
     private Product product;
 
-    
+    // Positive = stock in, negative = stock out.
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal qtyChange;
 

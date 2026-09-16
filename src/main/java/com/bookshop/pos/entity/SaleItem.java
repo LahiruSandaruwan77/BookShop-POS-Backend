@@ -22,7 +22,8 @@ public class SaleItem {
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal quantity;
 
-   
+    // Price SNAPSHOT at sale time — never look it up from Product for old bills,
+    // or history changes retroactively when prices change.
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal unitPrice;
 

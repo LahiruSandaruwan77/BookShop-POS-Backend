@@ -9,7 +9,11 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.math.BigDecimal;
 
-
+/**
+ * Runs at startup; seeds a first admin and sample data ONLY if the DB is empty.
+ * Without this you'd have a chicken-and-egg problem: no user exists to log in
+ * and create users.
+ */
 @Configuration
 public class DataSeeder {
 
@@ -18,9 +22,9 @@ public class DataSeeder {
                            ProductRepository products, StockMovementRepository movements,
                            PasswordEncoder encoder) {
         return args -> {
-            if (users.count() > 0) return; 
+            if (users.count() > 0) return; // already seeded
 
-            users.save(new AppUser("Lahiru", "lahiru", null,
+            users.save(new AppUser("Kavindu", "kavindu", null,
                     encoder.encode("admin123"), AppUser.Role.ADMIN));
 
             Category books = categories.save(new Category("Books"));
@@ -41,6 +45,7 @@ public class DataSeeder {
             movements.save(new StockMovement(book, new BigDecimal("12"),
                     StockMovement.Reason.OPENING, "Opening stock"));
 
+            System.out.println(">>> Seeded first admin: kavindu / admin123 (change this!)");
         };
     }
 }

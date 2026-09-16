@@ -23,11 +23,14 @@ public class SaleController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public SaleResponse checkout(@Valid @RequestBody SaleRequest request, Principal principal) {
-        
+        // Principal = the logged-in user, provided by Spring Security.
+        // Until security is wired up, DevSecurityConfig makes this work with a default user.
         return SaleResponse.from(saleService.checkout(request, principal.getName()));
     }
 
-
+    // @Transactional: joins SaleService.get()'s read-only transaction so the session
+    // stays open while SaleResponse.from() resolves the lazy `user` and each item's
+    // lazy `product` — get() itself only touches the items collection, not those.
     @GetMapping("/{id}")
     @Transactional(readOnly = true)
     public SaleResponse get(@PathVariable Long id) {
