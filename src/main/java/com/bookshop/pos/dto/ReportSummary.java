@@ -5,7 +5,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public record ReportSummary(
-        String range,
         LocalDateTime from,
         LocalDateTime to,
         BigDecimal totalSales,
@@ -13,7 +12,7 @@ public record ReportSummary(
         List<TopItem> topItems,
         List<CashierTotal> cashierTotals
 ) {
-    public record TopItem(String productName, BigDecimal quantity, BigDecimal revenue) {}
+    public record TopItem(Long productId, String productName, BigDecimal quantity, BigDecimal revenue) {}
 
-    public record CashierTotal(String cashier, BigDecimal total, long saleCount) {}
+    public record CashierTotal(Long userId, String cashier, BigDecimal total, long saleCount) {}
 }

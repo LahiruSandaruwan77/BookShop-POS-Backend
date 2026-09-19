@@ -5,31 +5,54 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.jpa.repository.Query;
 import java.math.BigDecimal;
+import java.sql.Date;
 import java.time.LocalDateTime;
 import java.util.List;
 
 public interface SaleRepository extends JpaRepository<Sale, Long> {
-    // Daily sales report: everything between 00:00 and 23:59 of a day.
-    List<Sale> findBySaleTimeBetween(LocalDateTime from, LocalDateTime to);
 
-    @Query("select coalesce(sum(s.totalAmount), 0) from Sale s where s.saleTime between :from and :to")
+    // Half-open interval [from, to) everywhere below: a sale landing exactly on a
+    // boundary instant (midnight between two days/weeks) belongs to exactly one side.
+    @Query("select coalesce(sum(s.totalAmount), 0) from Sale s where s.saleTime >= :from and s.saleTime < :to")
     BigDecimal sumTotalBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
-    long countBySaleTimeBetween(LocalDateTime from, LocalDateTime to);
+    long countBySaleTimeGreaterThanEqualAndSaleTimeLessThan(LocalDateTime from, LocalDateTime to);
 
     // Per-cashier totals for the reports screen — grouped in the DB rather than
-    // pulling every Sale into memory and summing in Java.
+    // pulling every Sale into memory and summing in Java. Grouped by id, not name,
+    // so two staff who happen to share a name never get merged into one row.
     @Query("""
-            select s.user.name as cashier, coalesce(sum(s.totalAmount), 0) as total, count(s) as saleCount
+            select s.user.id as userId, s.user.name as cashier,
+                   coalesce(sum(s.totalAmount), 0) as total, count(s) as saleCount
             from Sale s
-            where s.saleTime between :from and :to
-            group by s.user.name
+            where s.saleTime >= :from and s.saleTime < :to
+            group by s.user.id, s.user.name
             order by total desc
             """)
     List<CashierTotalRow> cashierTotalsBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
+    // Lightweight per-day breakdown for the week view's day list — total/count only,
+    // grouped by calendar day in the DB, so it's one cheap query instead of running
+    // the full summary() (with its top-items and per-cashier joins) once per day.
+    @Query("""
+            select cast(s.saleTime as date) as day,
+                   coalesce(sum(s.totalAmount), 0) as total, count(s) as saleCount
+            from Sale s
+            where s.saleTime >= :from and s.saleTime < :to
+            group by cast(s.saleTime as date)
+            order by day
+            """)
+    List<DailyTotalRow> dailyTotalsBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
     interface CashierTotalRow {
+        Long getUserId();
         String getCashier();
+        BigDecimal getTotal();
+        long getSaleCount();
+    }
+
+    interface DailyTotalRow {
+        Date getDay();
         BigDecimal getTotal();
         long getSaleCount();
     }
