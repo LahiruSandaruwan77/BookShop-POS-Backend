@@ -22,6 +22,13 @@ public record SaleRequest(
     public record Line(
             @NotNull Long productId,
             @NotNull @DecimalMin(value = "0.01", message = "Quantity must be positive")
-            BigDecimal quantity
+            BigDecimal quantity,
+
+            // Only for open-price products, where the cashier enters the price at
+            // billing time. NOT @NotNull: whether it's required depends on the
+            // product's type, which only the server (via a DB lookup) can know —
+            // SaleService validates it, not this DTO. For any other product type
+            // this is read and then ignored, never compared against the fixed price.
+            BigDecimal unitPrice
     ) {}
 }

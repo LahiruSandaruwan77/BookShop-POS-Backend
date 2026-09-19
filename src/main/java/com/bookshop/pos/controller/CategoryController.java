@@ -2,6 +2,7 @@ package com.bookshop.pos.controller;
 
 import com.bookshop.pos.entity.Category;
 import com.bookshop.pos.repository.CategoryRepository;
+import com.bookshop.pos.repository.ProductRepository;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -18,9 +19,11 @@ import java.util.Map;
 public class CategoryController {
 
     private final CategoryRepository categories;
+    private final ProductRepository products;
 
-    public CategoryController(CategoryRepository categories) {
+    public CategoryController(CategoryRepository categories, ProductRepository products) {
         this.categories = categories;
+        this.products = products;
     }
 
     @GetMapping
@@ -42,5 +45,18 @@ public class CategoryController {
         });
         Category c = categories.save(new Category(name));
         return Map.of("id", c.getId(), "name", c.getName());
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable Long id) {
+        Category c = categories.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Category not found"));
+        if (products.existsByCategoryId(id)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Can't delete \"" + c.getName() + "\" — it still has products assigned");
+        }
+        categories.delete(c);
     }
 }

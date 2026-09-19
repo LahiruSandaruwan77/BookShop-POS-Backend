@@ -27,21 +27,27 @@ public class ProductService {
 
     @Transactional
     public Product create(ProductRequest req) {
+        validateType(req);
         String barcode = normalizeBarcode(req);
         checkDuplicateBarcode(barcode, null);
         Category category = requireCategory(req.categoryId());
 
-        BigDecimal opening = req.service() ? null
-                : (req.openingStock() == null ? BigDecimal.ZERO : req.openingStock());
-
         Product p = new Product(barcode, req.name().trim(), category,
                 req.costPrice() == null ? BigDecimal.ZERO : req.costPrice(),
-                req.sellingPrice(), opening, req.service());
+                sellingPriceFor(req), null, req.service());
+        p.setOpenPrice(req.openPrice());
+        if (req.openPrice()) p.setMarginPercent(req.marginPercent() == null ? BigDecimal.ZERO : req.marginPercent());
         if (req.reorderLevel() != null) p.setReorderLevel(req.reorderLevel());
+
+        // isStockTracked() is only meaningful now that openPrice/service are set above.
+        BigDecimal opening = p.isStockTracked()
+                ? (req.openingStock() == null ? BigDecimal.ZERO : req.openingStock())
+                : null;
+        p.setStockQty(opening);
         p = products.save(p);
 
         // Opening stock goes through the movement log too — day one is auditable.
-        if (!p.isService() && opening.signum() > 0) {
+        if (p.isStockTracked() && opening.signum() > 0) {
             movements.save(new StockMovement(p, opening,
                     StockMovement.Reason.OPENING, "Opening stock"));
         }
@@ -50,6 +56,7 @@ public class ProductService {
 
     @Transactional
     public Product update(Long id, ProductRequest req) {
+        validateType(req);
         Product p = require(id);
         String barcode = normalizeBarcode(req);
         checkDuplicateBarcode(barcode, id);
@@ -58,11 +65,28 @@ public class ProductService {
         p.setName(req.name().trim());
         p.setCategory(requireCategory(req.categoryId()));
         if (req.costPrice() != null) p.setCostPrice(req.costPrice());
-        p.setSellingPrice(req.sellingPrice());
+        p.setSellingPrice(sellingPriceFor(req));
         p.setService(req.service());
+        p.setOpenPrice(req.openPrice());
+        p.setMarginPercent(req.openPrice() ? (req.marginPercent() == null ? BigDecimal.ZERO : req.marginPercent()) : null);
         if (req.reorderLevel() != null) p.setReorderLevel(req.reorderLevel());
         // Deliberately NOT touched here: stockQty. Stock changes only via StockService.
         return p;
+    }
+
+    // A product is normal, service, or open-price — never more than one.
+    private void validateType(ProductRequest req) {
+        if (req.service() && req.openPrice()) {
+            throw new ResponseStatusException(BAD_REQUEST, "A product can't be both a service and open-price");
+        }
+    }
+
+    // Open-price products have no fixed selling price — the cashier sets it per
+    // sale (see SaleService), so this is just a harmless placeholder that's
+    // never read for pricing.
+    private BigDecimal sellingPriceFor(ProductRequest req) {
+        if (req.openPrice()) return BigDecimal.ZERO;
+        return req.sellingPrice() == null ? BigDecimal.ZERO : req.sellingPrice();
     }
 
     @Transactional
@@ -83,7 +107,7 @@ public class ProductService {
     }
 
     private String normalizeBarcode(ProductRequest req) {
-        if (req.service()) return null; // services never have barcodes
+        if (req.service() || req.openPrice()) return null; // neither ever has a barcode
         String b = req.barcode() == null ? "" : req.barcode().trim();
         return b.isEmpty() ? null : b;
     }

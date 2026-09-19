@@ -36,7 +36,7 @@ public class ReportService {
     @Transactional(readOnly = true)
     public ReportSummary summary(LocalDateTime from, LocalDateTime to) {
         var topItems = saleItems.topItemsBetween(from, to, PageRequest.of(0, TOP_ITEMS_LIMIT)).stream()
-                .map(r -> new ReportSummary.TopItem(r.getProductId(), r.getProductName(), r.getQuantity(), r.getRevenue()))
+                .map(r -> new ReportSummary.TopItem(r.getProductId(), r.getProductName(), r.getQuantity(), r.getRevenue(), r.getProfit()))
                 .toList();
 
         var cashierTotals = sales.cashierTotalsBetween(from, to).stream()
@@ -47,6 +47,7 @@ public class ReportService {
                 from, to,
                 sales.sumTotalBetween(from, to),
                 sales.countBySaleTimeGreaterThanEqualAndSaleTimeLessThan(from, to),
+                saleItems.totalProfitBetween(from, to),
                 topItems,
                 cashierTotals
         );

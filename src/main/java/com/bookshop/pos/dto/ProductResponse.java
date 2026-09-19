@@ -16,6 +16,8 @@ public record ProductResponse(
         BigDecimal sellingPrice,
         BigDecimal stockQty,
         boolean service,
+        boolean openPrice,
+        BigDecimal marginPercent,
         boolean active,
         int reorderLevel
 ) {
@@ -24,7 +26,8 @@ public record ProductResponse(
                 p.getId(), p.getBarcode(), p.getName(),
                 p.getCategory().getName(),
                 p.getCostPrice(), p.getSellingPrice(), p.getStockQty(),
-                p.isService(), p.isActive(), p.getReorderLevel()
+                p.isService(), p.isOpenPrice(), p.getMarginPercent(),
+                p.isActive(), p.getReorderLevel()
         );
     }
 }

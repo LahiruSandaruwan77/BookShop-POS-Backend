@@ -1,5 +1,6 @@
 package com.bookshop.pos.service;
 
+import com.bookshop.pos.dto.SaleHeaderResponse;
 import com.bookshop.pos.dto.SaleRequest;
 import com.bookshop.pos.entity.*;
 import com.bookshop.pos.repository.*;
@@ -8,11 +9,19 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.springframework.http.HttpStatus.*;
 
 @Service
 public class SaleService {
+
+    private static final BigDecimal HUNDRED = new BigDecimal("100");
+    // Sanity ceiling on a cashier-entered open-price line — catches fat-finger
+    // entry (an extra zero, a misplaced decimal), not a real security boundary.
+    private static final BigDecimal MAX_OPEN_PRICE = new BigDecimal("100000");
 
     private final SaleRepository sales;
     private final ProductRepository products;
@@ -45,12 +54,12 @@ public class SaleService {
                     .orElseThrow(() -> new ResponseStatusException(BAD_REQUEST,
                             "Unknown or inactive product: id " + line.productId()));
 
-            if (!p.isService() && p.getStockQty().compareTo(line.quantity()) < 0) {
+            if (p.isStockTracked() && p.getStockQty().compareTo(line.quantity()) < 0) {
                 throw new ResponseStatusException(CONFLICT,
                         "Not enough stock for \"" + p.getName() + "\" — have "
                                 + p.getStockQty() + ", need " + line.quantity());
             }
-            total = total.add(p.getSellingPrice().multiply(line.quantity()));
+            total = total.add(resolveUnitPrice(p, line).multiply(line.quantity()));
         }
 
         if (req.paidAmount().compareTo(total) < 0) {
@@ -65,9 +74,11 @@ public class SaleService {
 
         for (SaleRequest.Line line : req.items()) {
             Product p = products.findById(line.productId()).orElseThrow(); // validated above
-            sale.addItem(new SaleItem(p, line.quantity(), p.getSellingPrice()));
+            BigDecimal unitPrice = resolveUnitPrice(p, line);
+            BigDecimal cost = resolveUnitCost(p, unitPrice);
+            sale.addItem(new SaleItem(p, line.quantity(), unitPrice, cost));
 
-            if (!p.isService()) { // the is_service rule: services skip inventory
+            if (p.isStockTracked()) { // services & open-price items skip inventory
                 p.setStockQty(p.getStockQty().subtract(line.quantity()));
                 movements.save(new StockMovement(p, line.quantity().negate(),
                         StockMovement.Reason.SALE, "Sale"));
@@ -77,11 +88,68 @@ public class SaleService {
         return sales.save(sale); // cascade saves all SaleItems too
     }
 
+    /**
+     * The security-critical decision: what price does this line charge? It is
+     * always derived from the PRODUCT'S OWN type as just read from the database
+     * — never from anything the client claims about the line. A client-sent
+     * unitPrice is used ONLY when the product is genuinely open-price, and even
+     * then only after being validated here. For every other product type it is
+     * read and then completely ignored: there is no comparison, no mismatch
+     * check, nothing that lets a client-sent number influence what a
+     * fixed-price product charges.
+     */
+    private BigDecimal resolveUnitPrice(Product p, SaleRequest.Line line) {
+        if (!p.isOpenPrice()) {
+            return p.getSellingPrice();
+        }
+        BigDecimal entered = line.unitPrice();
+        if (entered == null) {
+            throw new ResponseStatusException(BAD_REQUEST,
+                    "Price required for open-price item: " + p.getName());
+        }
+        if (entered.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ResponseStatusException(BAD_REQUEST,
+                    "Price must be positive for open-price item: " + p.getName());
+        }
+        if (entered.compareTo(MAX_OPEN_PRICE) > 0) {
+            throw new ResponseStatusException(BAD_REQUEST,
+                    "Price too high for open-price item: " + p.getName() + " (" + entered + ")");
+        }
+        return entered.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    // Cost snapshot per line — same principle as unitPrice: derived from the
+    // product's own type, never from client input beyond the already-validated price.
+    private BigDecimal resolveUnitCost(Product p, BigDecimal unitPrice) {
+        if (p.isOpenPrice()) {
+            // profit = enteredPrice x margin%; cost = enteredPrice - profit.
+            // Null margin (never configured) means zero profit, not a crash.
+            BigDecimal marginPercent = p.getMarginPercent() == null ? BigDecimal.ZERO : p.getMarginPercent();
+            BigDecimal profit = unitPrice.multiply(marginPercent)
+                    .divide(HUNDRED, 2, RoundingMode.HALF_UP);
+            return unitPrice.subtract(profit).setScale(2, RoundingMode.HALF_UP);
+        }
+        if (p.isService()) {
+            return BigDecimal.ZERO; // services have no goods cost — their whole price is margin
+        }
+        return p.getCostPrice();
+    }
+
     @Transactional(readOnly = true)
     public Sale get(Long id) {
         Sale sale = sales.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Sale not found"));
         sale.getItems().size(); // touch lazy collection inside the transaction
         return sale;
+    }
+
+    // Sales history list: fully resolved to DTOs before returning, so — unlike
+    // get() — the controller doesn't need its own @Transactional to keep a lazy
+    // association alive past this method.
+    @Transactional(readOnly = true)
+    public List<SaleHeaderResponse> listBetween(LocalDateTime from, LocalDateTime to) {
+        return sales.findHeadersBetween(from, to).stream()
+                .map(r -> new SaleHeaderResponse(r.getId(), r.getSaleTime(), r.getCashier(), r.getTotalAmount(), r.getItemCount()))
+                .toList();
     }
 }

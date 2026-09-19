@@ -37,6 +37,19 @@ public class Product {
     @Column(nullable = false)
     private boolean service = false;
 
+    // Open-price items (loose toys, misc): no barcode, no stock, no fixed price —
+    // the cashier enters the price at billing time. columnDefinition carries
+    // "default false" so this is safe to add to a database that already has
+    // products rows, same reasoning as SaleItem.unitCost.
+    @Column(nullable = false, columnDefinition = "boolean default false not null")
+    private boolean openPrice = false;
+
+    // Meaningful only when openPrice is true: profit margin as a percentage OF
+    // THE ENTERED SELLING PRICE (not of cost) — cost is derived from this at
+    // checkout. Null for normal/service products.
+    @Column(precision = 5, scale = 2)
+    private BigDecimal marginPercent;
+
     // Soft delete: never remove a product that old sales reference.
     @Column(nullable = false)
     private boolean active = true;
@@ -74,6 +87,15 @@ public class Product {
     public void setStockQty(BigDecimal stockQty) { this.stockQty = stockQty; }
     public boolean isService() { return service; }
     public void setService(boolean service) { this.service = service; }
+    public boolean isOpenPrice() { return openPrice; }
+    public void setOpenPrice(boolean openPrice) { this.openPrice = openPrice; }
+    public BigDecimal getMarginPercent() { return marginPercent; }
+    public void setMarginPercent(BigDecimal marginPercent) { this.marginPercent = marginPercent; }
+
+    // The single source of truth for "does this item touch inventory" — used by
+    // both SaleService (stock check/deduction) and ProductService (opening stock).
+    public boolean isStockTracked() { return !service && !openPrice; }
+
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
     public int getReorderLevel() { return reorderLevel; }

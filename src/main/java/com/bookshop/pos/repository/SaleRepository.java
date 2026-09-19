@@ -56,4 +56,24 @@ public interface SaleRepository extends JpaRepository<Sale, Long> {
         BigDecimal getTotal();
         long getSaleCount();
     }
+
+    // Sales history header list — size(s.items) is a per-row scalar (Hibernate
+    // turns it into a correlated subquery), not an aggregate, so this needs no
+    // GROUP BY and no separate query per sale to get its item count.
+    @Query("""
+            select s.id as id, s.saleTime as saleTime, s.user.username as cashier,
+                   s.totalAmount as totalAmount, size(s.items) as itemCount
+            from Sale s
+            where s.saleTime >= :from and s.saleTime < :to
+            order by s.saleTime desc
+            """)
+    List<SaleHeaderRow> findHeadersBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+    interface SaleHeaderRow {
+        Long getId();
+        LocalDateTime getSaleTime();
+        String getCashier();
+        BigDecimal getTotalAmount();
+        int getItemCount();
+    }
 }
