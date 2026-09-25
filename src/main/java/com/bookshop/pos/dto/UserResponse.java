@@ -3,7 +3,7 @@ package com.bookshop.pos.dto;
 import com.bookshop.pos.entity.AppUser;
 import java.time.LocalDateTime;
 
-/** Note what's absent: passwordHash. Never send it out, even hashed. */
+
 public record UserResponse(
         Long id, String name, String username, String phone,
         String role, boolean active, boolean mustChangePassword,

@@ -20,8 +20,6 @@ public class BackupController {
         this.backupService = backupService;
     }
 
-    // Lets an admin force a backup on demand (e.g. before closing up) in
-    // addition to the daily schedule.
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public Map<String, String> trigger() {

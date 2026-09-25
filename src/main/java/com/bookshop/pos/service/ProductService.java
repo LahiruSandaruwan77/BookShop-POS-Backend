@@ -16,12 +16,14 @@ public class ProductService {
 
     private final ProductRepository products;
     private final CategoryRepository categories;
+    private final SupplierRepository suppliers;
     private final StockMovementRepository movements;
 
     public ProductService(ProductRepository products, CategoryRepository categories,
-                          StockMovementRepository movements) {
+                          SupplierRepository suppliers, StockMovementRepository movements) {
         this.products = products;
         this.categories = categories;
+        this.suppliers = suppliers;
         this.movements = movements;
     }
 
@@ -35,18 +37,19 @@ public class ProductService {
         Product p = new Product(barcode, req.name().trim(), category,
                 req.costPrice() == null ? BigDecimal.ZERO : req.costPrice(),
                 sellingPriceFor(req), null, req.service());
+        p.setSupplier(requireSupplierOrNull(req.supplierId()));
         p.setOpenPrice(req.openPrice());
         if (req.openPrice()) p.setMarginPercent(req.marginPercent() == null ? BigDecimal.ZERO : req.marginPercent());
         if (req.reorderLevel() != null) p.setReorderLevel(req.reorderLevel());
 
-        // isStockTracked() is only meaningful now that openPrice/service are set above.
+
         BigDecimal opening = p.isStockTracked()
                 ? (req.openingStock() == null ? BigDecimal.ZERO : req.openingStock())
                 : null;
         p.setStockQty(opening);
         p = products.save(p);
 
-        // Opening stock goes through the movement log too — day one is auditable.
+
         if (p.isStockTracked() && opening.signum() > 0) {
             movements.save(new StockMovement(p, opening,
                     StockMovement.Reason.OPENING, "Opening stock"));
@@ -64,13 +67,13 @@ public class ProductService {
         p.setBarcode(barcode);
         p.setName(req.name().trim());
         p.setCategory(requireCategory(req.categoryId()));
+        p.setSupplier(requireSupplierOrNull(req.supplierId()));
         if (req.costPrice() != null) p.setCostPrice(req.costPrice());
         p.setSellingPrice(sellingPriceFor(req));
         p.setService(req.service());
         p.setOpenPrice(req.openPrice());
         p.setMarginPercent(req.openPrice() ? (req.marginPercent() == null ? BigDecimal.ZERO : req.marginPercent()) : null);
         if (req.reorderLevel() != null) p.setReorderLevel(req.reorderLevel());
-        // Deliberately NOT touched here: stockQty. Stock changes only via StockService.
         return p;
     }
 
@@ -104,6 +107,14 @@ public class ProductService {
     private Category requireCategory(Long id) {
         return categories.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(BAD_REQUEST, "Unknown category"));
+    }
+
+    // Supplier is optional on a product — null id means no supplier, a non-null
+    // id that doesn't exist is a client error.
+    private Supplier requireSupplierOrNull(Long id) {
+        if (id == null) return null;
+        return suppliers.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(BAD_REQUEST, "Unknown supplier"));
     }
 
     private String normalizeBarcode(ProductRequest req) {

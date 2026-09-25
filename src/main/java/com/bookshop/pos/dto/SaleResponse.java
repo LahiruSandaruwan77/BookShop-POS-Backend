@@ -15,7 +15,9 @@ public record SaleResponse(
         String cashier,
         List<Line> items
 ) {
-    public record Line(String name, BigDecimal quantity, BigDecimal unitPrice, BigDecimal lineTotal) {}
+
+    public record Line(String name, BigDecimal quantity, BigDecimal unitPrice, BigDecimal lineTotal,
+                        BigDecimal originalUnitPrice, BigDecimal discountAmount) {}
 
     public static SaleResponse from(Sale sale) {
         return new SaleResponse(
@@ -28,7 +30,8 @@ public record SaleResponse(
                 sale.getUser().getUsername(),
                 sale.getItems().stream()
                         .map(i -> new Line(i.getProduct().getName(), i.getQuantity(),
-                                i.getUnitPrice(), i.getLineTotal()))
+                                i.getUnitPrice(), i.getLineTotal(),
+                                i.getOriginalUnitPrice(), i.getDiscountAmount()))
                         .toList()
         );
     }

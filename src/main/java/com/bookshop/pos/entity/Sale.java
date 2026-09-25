@@ -33,7 +33,7 @@ public class Sale {
     @JoinColumn(name = "user_id")
     private AppUser user;
 
-    // Header/detail pattern: saving a Sale saves its lines too (cascade).
+
     @OneToMany(mappedBy = "sale", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<SaleItem> items = new ArrayList<>();
 

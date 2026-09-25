@@ -11,7 +11,7 @@ public class Product {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Nullable: loose pens and services have no barcode. Unique when present.
+
     @Column(unique = true, length = 32)
     private String barcode;
 
@@ -22,7 +22,10 @@ public class Product {
     @JoinColumn(name = "category_id")
     private Category category;
 
-    // ALWAYS BigDecimal for money — double/float cause rounding bugs on bills.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "supplier_id")
+    private Supplier supplier;
+
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal costPrice = BigDecimal.ZERO;
 
@@ -37,24 +40,18 @@ public class Product {
     @Column(nullable = false)
     private boolean service = false;
 
-    // Open-price items (loose toys, misc): no barcode, no stock, no fixed price —
-    // the cashier enters the price at billing time. columnDefinition carries
-    // "default false" so this is safe to add to a database that already has
-    // products rows, same reasoning as SaleItem.unitCost.
+
     @Column(nullable = false, columnDefinition = "boolean default false not null")
     private boolean openPrice = false;
 
-    // Meaningful only when openPrice is true: profit margin as a percentage OF
-    // THE ENTERED SELLING PRICE (not of cost) — cost is derived from this at
-    // checkout. Null for normal/service products.
+
     @Column(precision = 5, scale = 2)
     private BigDecimal marginPercent;
 
-    // Soft delete: never remove a product that old sales reference.
     @Column(nullable = false)
     private boolean active = true;
 
-    // Per-item low-stock threshold ("low" for pens != "low" for novels).
+
     @Column(nullable = false)
     private int reorderLevel = 10;
 
@@ -79,6 +76,8 @@ public class Product {
     public void setName(String name) { this.name = name; }
     public Category getCategory() { return category; }
     public void setCategory(Category category) { this.category = category; }
+    public Supplier getSupplier() { return supplier; }
+    public void setSupplier(Supplier supplier) { this.supplier = supplier; }
     public BigDecimal getCostPrice() { return costPrice; }
     public void setCostPrice(BigDecimal costPrice) { this.costPrice = costPrice; }
     public BigDecimal getSellingPrice() { return sellingPrice; }
@@ -92,8 +91,7 @@ public class Product {
     public BigDecimal getMarginPercent() { return marginPercent; }
     public void setMarginPercent(BigDecimal marginPercent) { this.marginPercent = marginPercent; }
 
-    // The single source of truth for "does this item touch inventory" — used by
-    // both SaleService (stock check/deduction) and ProductService (opening stock).
+
     public boolean isStockTracked() { return !service && !openPrice; }
 
     public boolean isActive() { return active; }

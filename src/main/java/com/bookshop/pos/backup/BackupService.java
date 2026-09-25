@@ -22,8 +22,7 @@ public class BackupService {
 
     private static final Logger log = LoggerFactory.getLogger(BackupService.class);
 
-    // Retention only ever touches files starting with this — never anything
-    // else an admin might drop into the same folder.
+
     private static final String PREFIX = "posdb-backup-";
     private static final DateTimeFormatter STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd-HHmm");
 
@@ -50,11 +49,6 @@ public class BackupService {
         }
     }
 
-    /**
-     * Takes a live snapshot via H2's own BACKUP TO command — H2 handles locking
-     * internally, so this is safe to run while the app is up and writing. Never
-     * copy the .mv.db file directly; that can capture a half-written page.
-     */
     public String backup() throws IOException {
         Path dir = Paths.get(backupDir);
         Files.createDirectories(dir);

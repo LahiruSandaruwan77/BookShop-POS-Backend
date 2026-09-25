@@ -7,11 +7,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
-/**
- * Bridges OUR app_users table to Spring Security. When someone logs in,
- * Spring asks this class "who is 'kavindu'?" and then checks the BCrypt
- * hash itself — we never compare passwords manually.
- */
+
 @Service
 public class JpaUserDetailsService implements UserDetailsService {
 

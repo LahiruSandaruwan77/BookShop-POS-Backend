@@ -3,15 +3,14 @@ package com.bookshop.pos.dto;
 import com.bookshop.pos.entity.Product;
 import java.math.BigDecimal;
 
-/**
- * DTO instead of returning the entity directly: controls exactly what the
- * frontend sees and avoids lazy-loading surprises with the category relation.
- */
+
 public record ProductResponse(
         Long id,
         String barcode,
         String name,
         String category,
+        Long supplierId,
+        String supplierName,
         BigDecimal costPrice,
         BigDecimal sellingPrice,
         BigDecimal stockQty,
@@ -25,6 +24,8 @@ public record ProductResponse(
         return new ProductResponse(
                 p.getId(), p.getBarcode(), p.getName(),
                 p.getCategory().getName(),
+                p.getSupplier() == null ? null : p.getSupplier().getId(),
+                p.getSupplier() == null ? null : p.getSupplier().getName(),
                 p.getCostPrice(), p.getSellingPrice(), p.getStockQty(),
                 p.isService(), p.isOpenPrice(), p.getMarginPercent(),
                 p.isActive(), p.getReorderLevel()

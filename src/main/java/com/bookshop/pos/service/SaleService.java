@@ -10,6 +10,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -19,34 +20,33 @@ import static org.springframework.http.HttpStatus.*;
 public class SaleService {
 
     private static final BigDecimal HUNDRED = new BigDecimal("100");
-    // Sanity ceiling on a cashier-entered open-price line — catches fat-finger
-    // entry (an extra zero, a misplaced decimal), not a real security boundary.
     private static final BigDecimal MAX_OPEN_PRICE = new BigDecimal("100000");
 
     private final SaleRepository sales;
     private final ProductRepository products;
+    private final DiscountRepository discounts;
     private final StockMovementRepository movements;
     private final AppUserRepository users;
 
-    public SaleService(SaleRepository sales, ProductRepository products,
+    public SaleService(SaleRepository sales, ProductRepository products, DiscountRepository discounts,
                        StockMovementRepository movements, AppUserRepository users) {
         this.sales = sales;
         this.products = products;
+        this.discounts = discounts;
         this.movements = movements;
         this.users = users;
     }
 
-    /**
-     * The heart of the POS. @Transactional = all-or-nothing:
-     * if anything fails (unknown product, insufficient stock, power cut mid-save),
-     * the WHOLE sale rolls back — never a half-recorded bill.
-     */
+
+    private record PricedLine(BigDecimal originalPrice, BigDecimal finalPrice) {}
+
+
     @Transactional
     public Sale checkout(SaleRequest req, String cashierUsername) {
         AppUser cashier = users.findByUsernameIgnoreCase(cashierUsername)
                 .orElseThrow(() -> new ResponseStatusException(UNAUTHORIZED, "Unknown cashier"));
+        LocalDate today = LocalDate.now();
 
-        // Pass 1: validate every line and compute the total — server-side prices only.
         BigDecimal total = BigDecimal.ZERO;
         for (SaleRequest.Line line : req.items()) {
             Product p = products.findById(line.productId())
@@ -59,7 +59,7 @@ public class SaleService {
                         "Not enough stock for \"" + p.getName() + "\" — have "
                                 + p.getStockQty() + ", need " + line.quantity());
             }
-            total = total.add(resolveUnitPrice(p, line).multiply(line.quantity()));
+            total = total.add(resolveUnitPrice(p, line, today).finalPrice().multiply(line.quantity()));
         }
 
         if (req.paidAmount().compareTo(total) < 0) {
@@ -67,16 +67,17 @@ public class SaleService {
                     "Paid amount " + req.paidAmount() + " is less than total " + total);
         }
 
-        // Pass 2: build the sale, deduct stock, log movements.
         String method = req.paymentMethod() == null ? "CASH" : req.paymentMethod();
         Sale sale = new Sale(cashier, total, req.paidAmount(),
                 req.paidAmount().subtract(total), method);
 
         for (SaleRequest.Line line : req.items()) {
             Product p = products.findById(line.productId()).orElseThrow(); // validated above
-            BigDecimal unitPrice = resolveUnitPrice(p, line);
-            BigDecimal cost = resolveUnitCost(p, unitPrice);
-            sale.addItem(new SaleItem(p, line.quantity(), unitPrice, cost));
+            PricedLine priced = resolveUnitPrice(p, line, today);
+            BigDecimal cost = resolveUnitCost(p, priced.finalPrice());
+            BigDecimal discountAmount = priced.originalPrice().subtract(priced.finalPrice());
+            sale.addItem(new SaleItem(p, line.quantity(), priced.finalPrice(), cost,
+                    priced.originalPrice(), discountAmount));
 
             if (p.isStockTracked()) { // services & open-price items skip inventory
                 p.setStockQty(p.getStockQty().subtract(line.quantity()));
@@ -88,38 +89,45 @@ public class SaleService {
         return sales.save(sale); // cascade saves all SaleItems too
     }
 
-    /**
-     * The security-critical decision: what price does this line charge? It is
-     * always derived from the PRODUCT'S OWN type as just read from the database
-     * — never from anything the client claims about the line. A client-sent
-     * unitPrice is used ONLY when the product is genuinely open-price, and even
-     * then only after being validated here. For every other product type it is
-     * read and then completely ignored: there is no comparison, no mismatch
-     * check, nothing that lets a client-sent number influence what a
-     * fixed-price product charges.
-     */
-    private BigDecimal resolveUnitPrice(Product p, SaleRequest.Line line) {
-        if (!p.isOpenPrice()) {
-            return p.getSellingPrice();
+    private PricedLine resolveUnitPrice(Product p, SaleRequest.Line line, LocalDate today) {
+        if (p.isOpenPrice()) {
+            BigDecimal entered = line.unitPrice();
+            if (entered == null) {
+                throw new ResponseStatusException(BAD_REQUEST,
+                        "Price required for open-price item: " + p.getName());
+            }
+            if (entered.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new ResponseStatusException(BAD_REQUEST,
+                        "Price must be positive for open-price item: " + p.getName());
+            }
+            if (entered.compareTo(MAX_OPEN_PRICE) > 0) {
+                throw new ResponseStatusException(BAD_REQUEST,
+                        "Price too high for open-price item: " + p.getName() + " (" + entered + ")");
+            }
+            BigDecimal price = entered.setScale(2, RoundingMode.HALF_UP);
+            return new PricedLine(price, price); // open-price items can't have discounts (see DiscountService)
         }
-        BigDecimal entered = line.unitPrice();
-        if (entered == null) {
-            throw new ResponseStatusException(BAD_REQUEST,
-                    "Price required for open-price item: " + p.getName());
+
+        BigDecimal original = p.getSellingPrice();
+        if (p.isService()) {
+            return new PricedLine(original, original); // services can't have discounts either
         }
-        if (entered.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new ResponseStatusException(BAD_REQUEST,
-                    "Price must be positive for open-price item: " + p.getName());
-        }
-        if (entered.compareTo(MAX_OPEN_PRICE) > 0) {
-            throw new ResponseStatusException(BAD_REQUEST,
-                    "Price too high for open-price item: " + p.getName() + " (" + entered + ")");
-        }
-        return entered.setScale(2, RoundingMode.HALF_UP);
+
+
+        BigDecimal discounted = discounts.findActiveForProductOn(p.getId(), today)
+                .map(d -> applyDiscount(original, d))
+                .orElse(original);
+        return new PricedLine(original, discounted);
     }
 
-    // Cost snapshot per line — same principle as unitPrice: derived from the
-    // product's own type, never from client input beyond the already-validated price.
+    private BigDecimal applyDiscount(BigDecimal price, Discount d) {
+        BigDecimal reduced = d.getType() == Discount.Type.PERCENT
+                ? price.subtract(price.multiply(d.getAmount()).divide(HUNDRED, 2, RoundingMode.HALF_UP))
+                : price.subtract(d.getAmount());
+        return reduced.max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP); // never below zero
+    }
+
+
     private BigDecimal resolveUnitCost(Product p, BigDecimal unitPrice) {
         if (p.isOpenPrice()) {
             // profit = enteredPrice x margin%; cost = enteredPrice - profit.
@@ -143,9 +151,7 @@ public class SaleService {
         return sale;
     }
 
-    // Sales history list: fully resolved to DTOs before returning, so — unlike
-    // get() — the controller doesn't need its own @Transactional to keep a lazy
-    // association alive past this method.
+
     @Transactional(readOnly = true)
     public List<SaleHeaderResponse> listBetween(LocalDateTime from, LocalDateTime to) {
         return sales.findHeadersBetween(from, to).stream()
