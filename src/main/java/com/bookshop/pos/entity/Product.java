@@ -11,7 +11,7 @@ public class Product {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Nullable: loose pens and services have no barcode. Unique when present.
+
     @Column(unique = true, length = 32)
     private String barcode;
 
@@ -22,7 +22,10 @@ public class Product {
     @JoinColumn(name = "category_id")
     private Category category;
 
-    // ALWAYS BigDecimal for money — double/float cause rounding bugs on bills.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "supplier_id")
+    private Supplier supplier;
+
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal costPrice = BigDecimal.ZERO;
 
@@ -37,11 +40,18 @@ public class Product {
     @Column(nullable = false)
     private boolean service = false;
 
-    // Soft delete: never remove a product that old sales reference.
+
+    @Column(nullable = false, columnDefinition = "boolean default false not null")
+    private boolean openPrice = false;
+
+
+    @Column(precision = 5, scale = 2)
+    private BigDecimal marginPercent;
+
     @Column(nullable = false)
     private boolean active = true;
 
-    // Per-item low-stock threshold ("low" for pens != "low" for novels).
+
     @Column(nullable = false)
     private int reorderLevel = 10;
 
@@ -66,6 +76,8 @@ public class Product {
     public void setName(String name) { this.name = name; }
     public Category getCategory() { return category; }
     public void setCategory(Category category) { this.category = category; }
+    public Supplier getSupplier() { return supplier; }
+    public void setSupplier(Supplier supplier) { this.supplier = supplier; }
     public BigDecimal getCostPrice() { return costPrice; }
     public void setCostPrice(BigDecimal costPrice) { this.costPrice = costPrice; }
     public BigDecimal getSellingPrice() { return sellingPrice; }
@@ -74,6 +86,14 @@ public class Product {
     public void setStockQty(BigDecimal stockQty) { this.stockQty = stockQty; }
     public boolean isService() { return service; }
     public void setService(boolean service) { this.service = service; }
+    public boolean isOpenPrice() { return openPrice; }
+    public void setOpenPrice(boolean openPrice) { this.openPrice = openPrice; }
+    public BigDecimal getMarginPercent() { return marginPercent; }
+    public void setMarginPercent(BigDecimal marginPercent) { this.marginPercent = marginPercent; }
+
+
+    public boolean isStockTracked() { return !service && !openPrice; }
+
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
     public int getReorderLevel() { return reorderLevel; }

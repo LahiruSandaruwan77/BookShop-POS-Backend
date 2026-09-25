@@ -37,7 +37,6 @@ public class AuthController {
         this.userService = userService;
     }
 
-    /** JSON login. On success, the session cookie keeps the user logged in. */
     @PostMapping("/login")
     public MeResponse login(@Valid @RequestBody LoginRequest req,
                             HttpServletRequest request, HttpServletResponse response) {
@@ -45,7 +44,6 @@ public class AuthController {
                 new UsernamePasswordAuthenticationToken(
                         req.username().trim().toLowerCase(), req.password()));
 
-        // Spring Security 6: explicitly store the auth in the session.
         SecurityContext ctx = SecurityContextHolder.createEmptyContext();
         ctx.setAuthentication(auth);
         SecurityContextHolder.setContext(ctx);
@@ -54,7 +52,7 @@ public class AuthController {
         return me(auth::getName);
     }
 
-    /** Who am I? The frontend calls this on page load to restore the session. */
+    //frontend calls this on page load to restore the session
     @GetMapping("/me")
     public MeResponse me(Principal principal) {
         if (principal == null) throw new ResponseStatusException(UNAUTHORIZED, "Not logged in");

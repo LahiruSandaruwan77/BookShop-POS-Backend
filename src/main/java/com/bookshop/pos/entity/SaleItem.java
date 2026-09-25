@@ -22,20 +22,32 @@ public class SaleItem {
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal quantity;
 
-    // Price SNAPSHOT at sale time — never look it up from Product for old bills,
-    // or history changes retroactively when prices change.
+
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal unitPrice;
+
+    @Column(nullable = false, precision = 10, scale = 2, columnDefinition = "decimal(10,2) default 0 not null")
+    private BigDecimal unitCost;
+
+    @Column(nullable = false, precision = 10, scale = 2, columnDefinition = "decimal(10,2) default 0 not null")
+    private BigDecimal originalUnitPrice;
+
+    @Column(nullable = false, precision = 10, scale = 2, columnDefinition = "decimal(10,2) default 0 not null")
+    private BigDecimal discountAmount;
 
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal lineTotal;
 
     protected SaleItem() {}
 
-    public SaleItem(Product product, BigDecimal quantity, BigDecimal unitPrice) {
+    public SaleItem(Product product, BigDecimal quantity, BigDecimal unitPrice, BigDecimal unitCost,
+                     BigDecimal originalUnitPrice, BigDecimal discountAmount) {
         this.product = product;
         this.quantity = quantity;
         this.unitPrice = unitPrice;
+        this.unitCost = unitCost;
+        this.originalUnitPrice = originalUnitPrice;
+        this.discountAmount = discountAmount;
         this.lineTotal = unitPrice.multiply(quantity);
     }
 
@@ -45,5 +57,8 @@ public class SaleItem {
     public Product getProduct() { return product; }
     public BigDecimal getQuantity() { return quantity; }
     public BigDecimal getUnitPrice() { return unitPrice; }
+    public BigDecimal getUnitCost() { return unitCost; }
+    public BigDecimal getOriginalUnitPrice() { return originalUnitPrice; }
+    public BigDecimal getDiscountAmount() { return discountAmount; }
     public BigDecimal getLineTotal() { return lineTotal; }
 }

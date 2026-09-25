@@ -3,8 +3,8 @@ package com.bookshop.pos.entity;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "categories")
-public class Category {
+@Table(name = "suppliers")
+public class Supplier {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -13,9 +13,9 @@ public class Category {
     @Column(nullable = false, unique = true, length = 50)
     private String name;
 
-    public Category() {}
+    protected Supplier() {}
 
-    public Category(String name) {
+    public Supplier(String name) {
         this.name = name;
     }
 

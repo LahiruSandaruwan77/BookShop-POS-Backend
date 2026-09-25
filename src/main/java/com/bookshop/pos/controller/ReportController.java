@@ -9,9 +9,10 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 
+// the whole reports area is admin-only
 @RestController
 @RequestMapping("/api/reports")
-@PreAuthorize("hasRole('ADMIN')") // the whole reports area is admin-only
+@PreAuthorize("hasRole('ADMIN')")
 public class ReportController {
 
     private final ReportService reportService;

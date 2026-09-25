@@ -9,10 +9,11 @@ public record ReportSummary(
         LocalDateTime to,
         BigDecimal totalSales,
         long saleCount,
+        BigDecimal totalProfit,
         List<TopItem> topItems,
         List<CashierTotal> cashierTotals
 ) {
-    public record TopItem(Long productId, String productName, BigDecimal quantity, BigDecimal revenue) {}
+    public record TopItem(Long productId, String productName, BigDecimal quantity, BigDecimal revenue, BigDecimal profit) {}
 
     public record CashierTotal(Long userId, String cashier, BigDecimal total, long saleCount) {}
 }

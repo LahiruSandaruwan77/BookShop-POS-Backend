@@ -12,9 +12,10 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+// the whole stock area is admin-only
 @RestController
 @RequestMapping("/api/stock-movements")
-@PreAuthorize("hasRole('ADMIN')") // the whole stock area is admin-only
+@PreAuthorize("hasRole('ADMIN')")
 public class StockController {
 
     private final StockService stockService;
@@ -25,8 +26,7 @@ public class StockController {
         this.movements = movements;
     }
 
-    // @Transactional: StockMovementResponse.from() resolves the lazy `product`
-    // association — needs the session open past the repository call (see ProductController).
+
     @GetMapping
     @Transactional(readOnly = true)
     public List<StockMovementResponse> recent() {

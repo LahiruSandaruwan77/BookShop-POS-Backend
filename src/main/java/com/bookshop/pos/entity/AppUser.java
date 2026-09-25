@@ -3,10 +3,7 @@ package com.bookshop.pos.entity;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
-/**
- * Named AppUser (table app_users) because USER is a reserved word in H2 —
- * an @Entity called User breaks table creation in confusing ways.
- */
+
 @Entity
 @Table(name = "app_users")
 public class AppUser {

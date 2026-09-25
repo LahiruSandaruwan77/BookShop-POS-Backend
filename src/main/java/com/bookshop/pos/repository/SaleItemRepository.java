@@ -11,13 +11,12 @@ import java.util.List;
 
 public interface SaleItemRepository extends JpaRepository<SaleItem, Long> {
 
-    // Top-selling items for the reports screen, ranked by revenue. Grouped by
-    // product id (name along for display) so a renamed/re-added product can't
-    // silently merge with another row under the same display name.
+
     @Query("""
             select i.product.id as productId, i.product.name as productName,
                    coalesce(sum(i.quantity), 0) as quantity,
-                   coalesce(sum(i.lineTotal), 0) as revenue
+                   coalesce(sum(i.lineTotal), 0) as revenue,
+                   coalesce(sum(i.lineTotal - i.unitCost * i.quantity), 0) as profit
             from SaleItem i
             where i.sale.saleTime >= :from and i.sale.saleTime < :to
             group by i.product.id, i.product.name
@@ -25,10 +24,19 @@ public interface SaleItemRepository extends JpaRepository<SaleItem, Long> {
             """)
     List<TopItemRow> topItemsBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to, Pageable limit);
 
+
+    @Query("""
+            select coalesce(sum(i.lineTotal - i.unitCost * i.quantity), 0)
+            from SaleItem i
+            where i.sale.saleTime >= :from and i.sale.saleTime < :to
+            """)
+    BigDecimal totalProfitBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
     interface TopItemRow {
         Long getProductId();
         String getProductName();
         BigDecimal getQuantity();
         BigDecimal getRevenue();
+        BigDecimal getProfit();
     }
 }

@@ -8,6 +8,5 @@ public record UserRequest(
         @NotBlank @Size(min = 3, max = 40) String username,
         @Size(max = 20) String phone,
         @NotNull AppUser.Role role,
-        // Temporary password — required on create, ignored on update.
         @Size(min = 6, max = 60) String password
 ) {}
